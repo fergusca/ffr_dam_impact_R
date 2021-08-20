@@ -1,0 +1,294 @@
+---
+title: "GRanD dam and river connectivity exploration"
+author: "Emi, Brian, Korrina"
+date: "8/20/2021"
+output: 
+  html_document: default
+  word_document: default
+  pdf_document: default
+always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(scientific=FALSE)
+
+library(dplyr)
+library(ggplot2)
+library(GGally)
+library(ggpubr)
+library(knitr)
+library(kableExtra)
+
+```
+
+# Data exploration for GRanD and FFR dam purpose project
+
+## Project overview
+Exploratory analyses using the combined GRanD and FFR datasets. Our goal is to examine whether there are patterns among river connectivity measures and dams by their reported main use (e.g., hydroelectricity, irrigation) and by continent. We are interested in examining whether there are differences in river connectivity status by dam use - especially with regard to hydroelectricity. 
+
+##Data processing steps 
+We merged the GRanD and FFR datasets using the unique GRAND_ID for a total of n = 7303 dams associated with river attributes in the FFR.  We reduced the dataset to a subset of observations (n = 3278) that were used in Grill et al. 2019 as indicated by the field "INC"= 1.  Dams are commonly used for multiple purposes that can have competing water management practices.  We expect that hydroelectricity will have a dominant effect on river connectivity regardless of whether it is labeled as the primary or secondary main use for a dam.  We created a new dam use class variable called "MAIN_HYDRO" which labels dams that have Hydroelectricity listed for any use as "Hydroelectricity". We also created a new other category ("Other expanded") that consolidated dams labeled as "Other", "Fisheries", and "Recreation". 
+
+Below are summary statistics of river connectivity measures by dam use and exploratory box-plots of the distribution of connectivity measures by dam use and continent.
+
+```{r, echo=FALSE}
+org <- read.csv("C:/Users/Owner/Dropbox/z_EmiFergus/a_Earth_Analytics_UC/a_Capstone_project/Data_processing/GRAND_FFR.csv")
+
+dat<- org %>%
+  filter(INC==1)
+
+# ORDER MAIN DAM PURPOSE WITH HYDROELECTRIC LISTED IF PRIMARY OR SECONDARY USE - "Other expanded" = Other, Fisheries, Recreation
+dat$MAIN_HYDRO<-ordered(dat$MAIN_HYDRO, levels=c("Hydroelectricity","Flood control","Water supply",
+                                                 "Irrigation","Navigation","Other expanded", ""))
+
+## Set font for plot
+windowsFonts(RMN=windowsFont("Times New Roman")) #RMN = Times New Roman
+
+
+```
+
+## Number of dams by dam use and continent
+Note there are 714 dams missing a main use.
+
+```{r, echo=FALSE}
+table(dat$CONTINENT, dat$MAIN_HYDRO)
+```
+
+
+## Summary statistics of river connectivity measures 
+Mean, standard deviation, and range of connectivity values are reported by dam use.
+Metrics include: CSI = connectivity status index; DOF = degree of fragmentation; DOR = degree of regulation
+
+```{r, echo=FALSE}
+summary<-dat %>%
+  group_by(MAIN_HYDRO) %>%
+  summarise(
+    mean_csi = round(mean(CSI),2),
+    sd_csi = round(sd(CSI),2),
+    min_csi = round(min(CSI),2),
+    max_csi = round(max(CSI),2),
+    mean_dof = round(mean(DOF),2),
+    sd_dof = round(sd(DOF),2),
+    min_dof = round(min(DOF),2),
+    max_dof = round(max(DOF),2),
+    mean_dor = round(mean(DOR),2),
+    sd_dor = round(sd(DOR),2),
+    min_dor = round(min(DOR),2),
+    max_dor = round(max(DOR),2)) %>%
+    #add_header_above(c("CSI" = 4, "DOF" = 4, "DOR" = 4))%>% 
+    #kable_styling(font_size = 10) #%>%
+    as.data.frame()
+
+kable(summary)%>%
+      add_header_above(c("Dam use" =1,"CSI" = 4, "DOF" = 4, "DOR" = 4))%>%
+      kable_styling(font_size=10)
+
+```
+
+## Boxplots of river attributes by dam use and continent
+Boxplots illustrate the distribution of river attribute values by our dam use classes and across continents.
+Group differences within a continent are tested using Kruskal-Wallis non-parametric group mean test with p-values reported.
+
+```{r, fig.height=5, fig.width=7,echo=FALSE}
+flow_bxplt<-ggplot(dat, aes(x=factor(MAIN_HYDRO), y = DIS_AV_CMS))+#,fill=factor(YEAR))+
+  geom_boxplot(aes(fill=factor(MAIN_HYDRO),y=DIS_AV_CMS),outlier.shape=NA)+#,stat="identity")+
+  scale_y_continuous(trans="log10",limits=c(NA,20000),labels=function(x) format(x,scientific = FALSE))+ #,  breaks=c(25,100,500,1000,2000,3500)) +
+  #scale_fill_manual(values = c("#4575b4","#74add1","#abd9e9","#e0f3f8","#fee090","#fdae61","#f46d43","#d73027"),na.value="gray")+
+  geom_jitter(width=0.1, alpha=0.3,)+ #aes(shape=factor(OUTLET_DAMS_rev))
+  stat_compare_means(label="p.format",size=2.5,family="RMN",label.x=2)+ # KRUSKAL WALLIS GRP MEAN TEST 
+  #facet_wrap(~ECOREG_rev,ncol=5)+
+  #facet_wrap(Lake_Origin_mod~ECOREG_rev, ncol=5)+
+  facet_wrap(~CONTINENT)+
+  theme_bw(base_size=12)+
+  theme(plot.title = element_text(family = "RMN",face="plain",size=14, hjust=0.5), 
+        axis.text.x = element_text(family = "RMN", angle=45, hjust=1),
+        axis.text.y = element_text(family = "RMN"),
+        axis.title.y=element_text(family="RMN"),
+        axis.title.x= element_blank(),#element_text(family="RMN"),
+        #axis.ticks.x=element_blank(),
+        panel.grid.major =  element_line(colour = NA), 
+        panel.grid.minor=element_line(colour = NA),
+        strip.text = element_text(family = "RMN"),
+        text = element_text(family = "RMN", size=12),
+        #plot.caption = element_text(family="RMN"),
+        # panel.spacing = unit(c(1,1,0,4), "lines"),
+        legend.position="none")+#c(0.90,0.25),#"right" # 1st = x-axis (0-1), 2nd = y-axis (0-1)
+  #ggtitle("CPL")+
+  labs(#title="\nAn example",
+    #subtitle="using font Decima WE",
+    #caption="Notes: probably compliant with the new logo font ARPA-FVG\n",
+    #x=expression("HydrAP rank"),
+    y=expression("Mean discharge cubic m/s"))
+
+flow_bxplt
+```
+
+River discharge distributions are different across dam types for all of the continents, as indicated by the Kruskal-Wallis test (p-value <0.05). In general, rivers that have dams used for hydroelectricity, tend to be on larger rivers with greater discharge compared to dams used for other purposes. But there is a great deal of variation within these classes. 
+
+## Boxplots river connectivity measures
+
+```{r, fig.height=5, fig.width=7,echo=FALSE}
+# CONNECTIVITY STATUS INDEX
+csi_bxplt<-ggplot(dat, aes(x=factor(MAIN_HYDRO), y = CSI))+#,fill=factor(YEAR))+
+  geom_boxplot(aes(fill=factor(MAIN_HYDRO),y=CSI),outlier.shape=NA)+#,stat="identity")+
+  scale_y_continuous(limits=c(NA,108))+
+  #scale_y_continuous(trans="log10",limits=c(NA,100),labels=function(x) format(x,scientific = FALSE))+ #,  breaks=c(25,100,500,1000,2000,3500)) +
+  #scale_fill_manual(values = c("#4575b4","#74add1","#abd9e9","#e0f3f8","#fee090","#fdae61","#f46d43","#d73027"),na.value="gray")+
+  geom_jitter(width=0.1, alpha=0.3,)+ #aes(shape=factor(OUTLET_DAMS_rev))
+  stat_compare_means(label="p.format",size=2.5,family="RMN",label.x=2)+ # KRUSKAL WALLIS GRP MEAN TEST 
+  #facet_wrap(~ECOREG_rev,ncol=5)+
+  #facet_wrap(Lake_Origin_mod~ECOREG_rev, ncol=5)+
+  facet_wrap(~CONTINENT)+
+  theme_bw(base_size=12)+
+  theme(plot.title = element_text(family = "RMN",face="plain",size=14, hjust=0.5), 
+        axis.text.x = element_text(family = "RMN", angle=45, hjust=1),
+        axis.text.y = element_text(family = "RMN"),
+        axis.title.y=element_text(family="RMN"),
+        axis.title.x= element_blank(),#element_text(family="RMN"),
+        #axis.ticks.x=element_blank(),
+        panel.grid.major =  element_line(colour = NA), 
+        panel.grid.minor=element_line(colour = NA),
+        strip.text = element_text(family = "RMN"),
+        text = element_text(family = "RMN", size=12),
+        #plot.caption = element_text(family="RMN"),
+        # panel.spacing = unit(c(1,1,0,4), "lines"),
+        legend.position="none")+#c(0.90,0.25),#"right" # 1st = x-axis (0-1), 2nd = y-axis (0-1)
+  #ggtitle("CPL")+
+  labs(#title="\nAn example",
+    #subtitle="using font Decima WE",
+    #caption="Notes: probably compliant with the new logo font ARPA-FVG\n",
+    #x=expression("HydrAP rank"),
+    y=expression("Connectivity status index"))
+
+csi_bxplt
+```
+
+
+CSI values differed among dam use classes In Africa, Asia, and S America. We did not find significant differences in CSI mean values among dam types in Australia, Europe, and N America (kruskal-wallis p>0.05). In Africa, dams used for hydroelectric and irrigation had lower CSI compared to other dam types. 
+
+
+```{r, fig.height=5, fig.width=7,echo=FALSE}
+# DEGREE OF FRAGMENTATION
+DOF_bxplt<-ggplot(dat, aes(x=factor(MAIN_HYDRO), y = DOF))+#,fill=factor(YEAR))+
+  geom_boxplot(aes(fill=factor(MAIN_HYDRO),y=DOF),outlier.shape=NA)+#,stat="identity")+
+  scale_y_continuous(limits=c(NA,108))+
+  #scale_y_continuous(trans="log10",limits=c(NA,100),labels=function(x) format(x,scientific = FALSE))+ #,  breaks=c(25,100,500,1000,2000,3500)) +
+  #scale_fill_manual(values = c("#4575b4","#74add1","#abd9e9","#e0f3f8","#fee090","#fdae61","#f46d43","#d73027"),na.value="gray")+
+  geom_jitter(width=0.1, alpha=0.3,)+ #aes(shape=factor(OUTLET_DAMS_rev))
+  stat_compare_means(label="p.format",size=2.5,family="RMN",label.x=2)+ # KRUSKAL WALLIS GRP MEAN TEST 
+  #facet_wrap(~ECOREG_rev,ncol=5)+
+  #facet_wrap(Lake_Origin_mod~ECOREG_rev, ncol=5)+
+  facet_wrap(~CONTINENT)+
+  theme_bw(base_size=12)+
+  theme(plot.title = element_text(family = "RMN",face="plain",size=14, hjust=0.5), 
+        axis.text.x = element_text(family = "RMN", angle=45, hjust=1),
+        axis.text.y = element_text(family = "RMN"),
+        axis.title.y=element_text(family="RMN"),
+        axis.title.x= element_blank(),#element_text(family="RMN"),
+        #axis.ticks.x=element_blank(),
+        panel.grid.major =  element_line(colour = NA), 
+        panel.grid.minor=element_line(colour = NA),
+        strip.text = element_text(family = "RMN"),
+        text = element_text(family = "RMN", size=12),
+        #plot.caption = element_text(family="RMN"),
+        # panel.spacing = unit(c(1,1,0,4), "lines"),
+        legend.position="none")+#c(0.90,0.25),#"right" # 1st = x-axis (0-1), 2nd = y-axis (0-1)
+  #ggtitle("CPL")+
+  labs(#title="\nAn example",
+    #subtitle="using font Decima WE",
+    #caption="Notes: probably compliant with the new logo font ARPA-FVG\n",
+    #x=expression("HydrAP rank"),
+    y=expression("Degree of fragmentation"))
+
+DOF_bxplt
+```
+
+We did not find significant differences in degree of fragmentation values among dam types across most continents except Africa. This may not be surprising because dams regardless of how they are used can fragment river networks. We should read up more on how degree of fragmentation was determined. 
+
+```{r, fig.height=5, fig.width=7,echo=FALSE}
+# DEGREE OF REGULATION
+DOR_bxplt<-ggplot(dat, aes(x=factor(MAIN_HYDRO), y = DOR))+#,fill=factor(YEAR))+
+  geom_boxplot(aes(fill=factor(MAIN_HYDRO),y=DOR),outlier.shape=NA)+#,stat="identity")+
+  scale_y_continuous(limits=c(NA,108))+
+  #scale_y_continuous(trans="log10",limits=c(NA,100),labels=function(x) format(x,scientific = FALSE))+ #,  breaks=c(25,100,500,1000,2000,3500)) +
+  #scale_fill_manual(values = c("#4575b4","#74add1","#abd9e9","#e0f3f8","#fee090","#fdae61","#f46d43","#d73027"),na.value="gray")+
+  geom_jitter(width=0.1, alpha=0.3,)+ #aes(shape=factor(OUTLET_DAMS_rev))
+  stat_compare_means(label="p.format",size=2.5,family="RMN",label.x=2)+ # KRUSKAL WALLIS GRP MEAN TEST 
+  #facet_wrap(~ECOREG_rev,ncol=5)+
+  #facet_wrap(Lake_Origin_mod~ECOREG_rev, ncol=5)+
+  facet_wrap(~CONTINENT)+
+  theme_bw(base_size=12)+
+  theme(plot.title = element_text(family = "RMN",face="plain",size=14, hjust=0.5), 
+        axis.text.x = element_text(family = "RMN", angle=45, hjust=1),
+        axis.text.y = element_text(family = "RMN"),
+        axis.title.y=element_text(family="RMN"),
+        axis.title.x= element_blank(),#element_text(family="RMN"),
+        #axis.ticks.x=element_blank(),
+        panel.grid.major =  element_line(colour = NA), 
+        panel.grid.minor=element_line(colour = NA),
+        strip.text = element_text(family = "RMN"),
+        text = element_text(family = "RMN", size=12),
+        #plot.caption = element_text(family="RMN"),
+        # panel.spacing = unit(c(1,1,0,4), "lines"),
+        legend.position="none")+#c(0.90,0.25),#"right" # 1st = x-axis (0-1), 2nd = y-axis (0-1)
+  #ggtitle("CPL")+
+  labs(#title="\nAn example",
+    #subtitle="using font Decima WE",
+    #caption="Notes: probably compliant with the new logo font ARPA-FVG\n",
+    #x=expression("HydrAP rank"),
+    y=expression("Degree of regulation"))
+
+DOR_bxplt
+```
+
+
+Dams used for hydroelectricity, water supply, and irrigation tended to have higher DOR values indicating that these particular uses may alter lateral and temporal connectivity of rivers compared to dams used for navigation and other purposes. 
+
+## Boxplots examining hydroelectric dams and all other dam types by river order
+
+```{r, order_bxplt, fig.height=8, fig.width=5,echo=FALSE}
+
+# CONNECTIVITY STATUS INDEX by river order
+dat$HYDELEC_code2 <- factor(dat$HYDELEC_code, levels=c("0","1"),
+                           labels=c("Other","Hydroelectric"))
+
+dat$HYDELEC_code2<-ordered(dat$HYDELEC_code2, levels=c("Hydroelectric","Other"))
+
+
+order_bxplt<-ggplot(dat, aes(x=factor(RIV_ORD), y = CSI))+#,fill=factor(YEAR))+
+  geom_boxplot(aes(fill=factor(RIV_ORD),y=CSI),outlier.shape=NA)+#,stat="identity")+
+  scale_y_continuous(limits=c(NA,108))+
+  #scale_y_continuous(trans="log10",limits=c(NA,100),labels=function(x) format(x,scientific = FALSE))+ #,  breaks=c(25,100,500,1000,2000,3500)) +
+  #scale_fill_manual(values = c("#4575b4","#74add1","#abd9e9","#e0f3f8","#fee090","#fdae61","#f46d43","#d73027"),na.value="gray")+
+  geom_jitter(width=0.1, alpha=0.3,)+ #aes(shape=factor(OUTLET_DAMS_rev))
+  stat_compare_means(label="p.format",size=2.5,family="RMN",label.x=2)+ # KRUSKAL WALLIS GRP MEAN TEST 
+  #facet_wrap(~ECOREG_rev,ncol=5)+
+  #facet_wrap(Lake_Origin_mod~ECOREG_rev, ncol=5)+
+  #facet_wrap(~CONTINENT)+
+  facet_grid(CONTINENT~HYDELEC_code2)+
+  theme_bw(base_size=12)+
+  theme(plot.title = element_text(family = "RMN",face="plain",size=14, hjust=0.5), 
+        axis.text.x = element_text(family = "RMN", angle=45, hjust=1),
+        axis.text.y = element_text(family = "RMN"),
+        axis.title.y=element_text(family="RMN"),
+        axis.title.x= element_blank(),#element_text(family="RMN"),
+        #axis.ticks.x=element_blank(),
+        panel.grid.major =  element_line(colour = NA), 
+        panel.grid.minor=element_line(colour = NA),
+        strip.text = element_text(family = "RMN"),
+        text = element_text(family = "RMN", size=12),
+        #plot.caption = element_text(family="RMN"),
+        # panel.spacing = unit(c(1,1,0,4), "lines"),
+        legend.position="none")+#c(0.90,0.25),#"right" # 1st = x-axis (0-1), 2nd = y-axis (0-1)
+  #ggtitle("CPL")+
+  labs(#title="\nAn example",
+    #subtitle="using font Decima WE",
+    #caption="Notes: probably compliant with the new logo font ARPA-FVG\n",
+    x=expression("River order"),
+    y=expression("Connectivity status index"))
+
+order_bxplt
+```
+
+Here I collapsed dam types into Hydroelectric or other and plotted CSI against river order (where lower order numbers indicate larger rivers. We can see that connectivity measures decrease with larger rivers - there may be a threshold between rivers 6 and higher having greater connectivity compared to rivers <6.
