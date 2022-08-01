@@ -3,8 +3,8 @@ title: "GRanD dam and river connectivity exploration"
 author: "Emi, Brian, Korrina"
 date: "8/20/2021"
 output: 
-  html_document: default
   word_document: default
+  html_document: default
   pdf_document: default
 always_allow_html: yes
 ---
@@ -80,9 +80,11 @@ summary<-dat %>%
     #kable_styling(font_size = 10) #%>%
     as.data.frame()
 
-kable(summary)%>%
-      add_header_above(c("Dam use" =1,"CSI" = 4, "DOF" = 4, "DOR" = 4))%>%
-      kable_styling(font_size=10)
+summary
+# FOR html output
+#kable(summary)%>%
+#      add_header_above(c("Dam use" =1,"CSI" = 4, "DOF" = 4, "DOR" = 4))%>%
+#      kable_styling(font_size=10)
 
 ```
 
